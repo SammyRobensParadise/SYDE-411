@@ -98,6 +98,7 @@ NUM_LOCATIONS = 9
 NUM_VEHICLES = 2
 GRID_SIZE = {"x": 1000, "y": 1000}
 SEED = 18945
+CENTRAL_LOCATION="Central Location"
 
 
 # possible distances are
@@ -173,7 +174,7 @@ def generate_data(
     central_location_coord = [0, 0]
     # the central location is taken to be (0,0)
     locations.append(central_location_coord)
-    annotations.append("Central Location")
+    annotations.append(CENTRAL_LOCATION)
     for _ in range(num_locations):
         x_coord = np.random.randint(-1 * grid_size["x"] / 2, grid_size["x"] / 2)
         y_coord = np.random.randint(-1 * grid_size["y"] / 2, grid_size["y"] / 2)
@@ -293,7 +294,19 @@ def objective_function(problem, x, distances):
     return problem
 
 
-def constraints(problem, x, location_points):
+def constraints(problem, x, location_points, num_vehicles):
+    x_transp = np.transpose(x)
+    for idx, location in enumerate(location_points):
+        max_visits = 1
+        if location == CENTRAL_LOCATION:
+            max_visits = num_vehicles
+        sum = list(filter(not_none, x[idx]))
+        sum_transp = list(filter(not_none, x_transp[idx]))
+        # constrain inbound connections
+        problem += pulp.lpSum(sum) == max_visits
+        # constrain outbound connections by taking the transpose
+        # i.e x_0_1 --> x_1_0
+        problem += pulp.lpSum(sum_transp) == max_visits
     return problem
 
 
@@ -323,7 +336,7 @@ class Problem:
     def __init__(
         self,
         num_locations=NUM_LOCATIONS,
-        num_vehicles=1,
+        num_vehicles=NUM_VEHICLES,
         grid_size=GRID_SIZE,
         seed=SEED,
         id=1,
@@ -355,6 +368,10 @@ class Problem:
         self.u = u
         # add objective function to our problem
         self.problem = objective_function(self.problem, x_1d, distances)
+        # apply constrains to our objective function
+        self.problem = constraints(
+            self.problem, self.x, self.annotations, self.num_vehicles
+        )
 
     def plot_locations(self):
         plt.figure()
@@ -403,5 +420,3 @@ P1.plot_locations()
 ![svg](project_files/project_14_0.svg)
     
 
-
-## Minimization Problem
