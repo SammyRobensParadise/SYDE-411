@@ -269,6 +269,16 @@ def generate_u(location_points):
 
 
 def objective_function(problem, x, distances):
+    """applys the objective function to the problem
+
+    Args:
+        problem (LpProblem): a linear programming problem
+        x (ndarray): x_ij
+        distances (ndarrray): distances 
+
+    Returns:
+        LpProblem: `LpProblem`
+    """
     distances_1d = []
     for row in distances:
         for d in row:
