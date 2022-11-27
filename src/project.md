@@ -37,7 +37,7 @@ The problem will be formulated as follows: Given 1 bus with a maximum capacity, 
 
 ## Problem to Minimize
 
-For **K** vehicles where $K=\{1,2,...,|k|\}$:
+For **K** vehicles where $K=\{1,2,...,k\}, k \gt 0$:
 
 $G=(V,E)$ is a graph of the location and routes of the vehicles
 
@@ -201,7 +201,7 @@ def _validate_distances_(distances):
         assert distances[i][i] == 0, "Distance diagonals cannot be non-zero"
 
 
-def generate_problem(title="cap_vehicle_routing_roblem"):
+def generate_lp_problem(title="cap_vehicle_routing_roblem"):
     """Generates a PuLP problem
 
     Args:
@@ -252,60 +252,36 @@ def generate_x(location_count):
     return x, x_1d
 
 
-"""
-def add_objective_function(
-    problem, x, locations, vehicles=NUM_VEHICLES, num_locations=NUM_LOCATIONS
-):
-    problem += pulp.lpSum(
-        locations[i][j] * x[i][j][k] if i != j else 0
-        for k in range(vehicles)
-        for j in range(num_locations)
-        for i in range(num_locations)
-    )
+def generate_u(location_points):
+    """generate dummy `u` variables
+
+    Args:
+        location_points (ndarray): array of strings
+
+    Returns:
+        u: array of `LpVariables`
+    """
+    u = [
+        pulp.LpVariable("u_%s" % (name), 0, len(location_points) - 1, pulp.LpInteger)
+        for name in location_points
+    ]
+    return u
+
+
+def objective_function(problem, x, distances):
+    distances_1d = []
+    for row in distances:
+        for d in row:
+            if d != 0:
+                distances_1d.append(d)
+    sum = []
+    for idx, d in enumerate(distances_1d):
+        ls = x[idx] * d
+        sum.append(ls)
+    cost = pulp.lpSum(sum)
+    problem += cost
     return problem
-
-
-def add_constraints(problem, x, vehicles=NUM_VEHICLES, num_locations=NUM_LOCATIONS):
-
-    print(np.array(x).shape)
-
-    # apply constraint (2)
-    for jdx in range(num_locations):
-        problem += pulp.lpSum(
-            x[idx][jdx][kdx] if idx != jdx else 0
-            for idx in range(num_locations)
-            for kdx in range(num_locations)
-        )
-
-    # apply constraint (3)
-    first = 0
-    for kdx in range(vehicles):
-        problem += (
-            pulp.lpSum(x[first][jdx][kdx] for jdx in range(1, num_locations)) == 1
-        )
-        problem += (
-            pulp.lpSum(x[idx][first][kdx] for idx in range(1, num_locations)) == 1
-        )
-
-    # apply constrait (4)
-    for k in range(vehicles):
-        for j in range(num_locations):
-            problem += (
-                pulp.lpSum(x[i][j][k] if i != j else 0 for i in range(num_locations))
-                - pulp.lpSum(x[j][i][k] for i in range(num_locations))
-                == 0
-            )
-
-    return problem
-"""
 ```
-
-
-
-
-    '\ndef add_objective_function(\n    problem, x, locations, vehicles=NUM_VEHICLES, num_locations=NUM_LOCATIONS\n):\n    problem += pulp.lpSum(\n        locations[i][j] * x[i][j][k] if i != j else 0\n        for k in range(vehicles)\n        for j in range(num_locations)\n        for i in range(num_locations)\n    )\n    return problem\n\n\ndef add_constraints(problem, x, vehicles=NUM_VEHICLES, num_locations=NUM_LOCATIONS):\n\n    print(np.array(x).shape)\n\n    # apply constraint (2)\n    for jdx in range(num_locations):\n        problem += pulp.lpSum(\n            x[idx][jdx][kdx] if idx != jdx else 0\n            for idx in range(num_locations)\n            for kdx in range(num_locations)\n        )\n\n    # apply constraint (3)\n    first = 0\n    for kdx in range(vehicles):\n        problem += (\n            pulp.lpSum(x[first][jdx][kdx] for jdx in range(1, num_locations)) == 1\n        )\n        problem += (\n            pulp.lpSum(x[idx][first][kdx] for idx in range(1, num_locations)) == 1\n        )\n\n    # apply constrait (4)\n    for k in range(vehicles):\n        for j in range(num_locations):\n            problem += (\n                pulp.lpSum(x[i][j][k] if i != j else 0 for i in range(num_locations))\n                - pulp.lpSum(x[j][i][k] for i in range(num_locations))\n                == 0\n            )\n\n    return problem\n'
-
-
 
 ## Class Definition
 Create a class `Problem` so that we can create multiple problems with various test iteratively and dynmaically
@@ -349,10 +325,18 @@ class Problem:
         self.distances = distances
         self.locations = locations
         self.annotations = annotations
-        self.problem = generate_problem()
+        # create a Linear Programming Optimization problem
+        self.problem = generate_lp_problem()
+        # generate binary variable x
         x, x_1d = generate_x(len(locations))
         self.x = x
+        # linearize x into a 1D array to make the math easier
         self.x_1d = x_1d
+        # generate dummy variable u to eliminate subtours
+        u = generate_u(self.annotations)
+        self.u = u
+        # add objective function to our problem
+        self.problem = objective_function(self.problem, x_1d, distances)
 
     def plot_locations(self):
         plt.figure()
@@ -393,6 +377,13 @@ locations, distances, annotations = generate_data(
 
 ```python
 P1 = Problem(locations=locations, distances=distances, annotations=annotations)
+P1.plot_locations()
 ```
+
+
+    
+![svg](project_files/project_14_0.svg)
+    
+
 
 ## Minimization Problem
