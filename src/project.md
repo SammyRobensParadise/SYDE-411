@@ -274,7 +274,7 @@ def objective_function(problem, x, distances):
     Args:
         problem (LpProblem): a linear programming problem
         x (ndarray): x_ij
-        distances (ndarrray): distances 
+        distances (ndarrray): distances
 
     Returns:
         LpProblem: `LpProblem`
@@ -290,6 +290,14 @@ def objective_function(problem, x, distances):
         sum.append(ls)
     cost = pulp.lpSum(sum)
     problem += cost
+    return problem
+
+
+def constraints(problem, x, location_points):
+    return problem
+
+
+def subtours(problem):
     return problem
 ```
 
