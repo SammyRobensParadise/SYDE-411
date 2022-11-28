@@ -330,7 +330,7 @@ def subtours(problem, x, u, location_points, num_vehicles):
         u (ndarray): u dummy variables to handle inequalities
         location_points (ndarray): array of locations
         num_vehicles (int): number of vehicles
-        
+
     Returns:
         problem: `LpProblem`
     """
@@ -340,6 +340,55 @@ def subtours(problem, x, u, location_points, num_vehicles):
             if l1 != l2 and (l1 != CENTRAL_LOCATION and l2 != CENTRAL_LOCATION):
                 problem += u[i] - u[j] <= (n) * (1 - (x[i][j])) - 1
     return problem
+
+
+def next(edge, nonzero_edges: list, r: list):
+    """recursive search to find the next edge
+
+    Args:
+        edge (edge)
+        nonzero_edges (list): edges
+        r (list): routes
+
+    Returns:
+        routes: list
+    """
+    r.append(edge)
+    edge_name_list = list(str(edge))
+    next_index = edge_name_list[len(edge_name_list) - 1]
+    target_string = "x" + next_index
+    target_edge = None
+    for e in nonzero_edges:
+        name = str(e)
+        if name.startswith(target_string):
+            target_edge = e
+            nonzero_edges.remove(e)
+    if target_edge != None:
+        next(target_edge, nonzero_edges, r)
+    else:
+        return r
+
+
+def construct_routes(nonzero_edges: list):
+    """constructs the routes that the vehicles should follow
+
+    Args:
+        nonzero_edges (list): nonzero edges
+
+    Returns:
+        routs: 2D array of routes
+    """
+    start_points = []
+    routes = []
+    for edge in nonzero_edges:
+        name = str(edge)
+        if "x0" in name:
+            start_points.append(edge)
+    for start_point in start_points:
+        r = []
+        next(start_point, nonzero_edges, r)
+        routes.append(r)
+    return routes
 ```
 
 ## Class Definition
@@ -363,16 +412,29 @@ problem = Problem(locations=locations, distances=distances, annotations=annotati
 class Problem:
     def __init__(
         self,
-        num_locations=NUM_LOCATIONS,
-        num_vehicles=NUM_VEHICLES,
-        grid_size=GRID_SIZE,
-        seed=SEED,
-        id=1,
-        locations=None,
-        distances=None,
-        annotations=None,
+        num_locations: int = NUM_LOCATIONS,
+        num_vehicles: int = NUM_VEHICLES,
+        grid_size: dict = GRID_SIZE,
+        seed: int = SEED,
+        id: int = 1,
+        locations: list or None = None,
+        distances: list or None = None,
+        annotations: list or None = None,
     ):
+        """VRP Problem Class
+
+        Args:
+            num_locations (int, optional): _description_. Defaults to NUM_LOCATIONS.
+            num_vehicles (int, optional): _description_. Defaults to NUM_VEHICLES.
+            grid_size (dict, optional): _description_. Defaults to GRID_SIZE.
+            seed (int, optional): _description_. Defaults to SEED.
+            id (int, optional): _description_. Defaults to 1.
+            locations (listorNone, optional): _description_. Defaults to None.
+            distances (listorNone, optional): _description_. Defaults to None.
+            annotations (listorNone, optional): _description_. Defaults to None.
+        """
         self.id = id
+        self.is_solved = False
         self.num_locations = num_locations
         self.num_vehicles = num_vehicles
         self.grid_size = grid_size
@@ -409,6 +471,7 @@ class Problem:
         elif method == "default":
             self.problem.solve()
         self.problem.stopClock()
+        self.is_solved = True
         return pulp.LpStatus[self.problem.status]
 
     def plot_locations(self):
@@ -425,11 +488,40 @@ class Problem:
             plt.annotate(label, (self.locations[:, 0][i], self.locations[:, 1][i]))
         plt.show()
 
-    def print_problems_state(self):
+    def state(self):
         print("Minimization problems for problem of id: " + str(self.id))
-        for i, problem in enumerate(self.problems):
-            print("Problem:" + str(i) + " =======")
-            print(problem)
+        print(self.problem)
+
+    def edge_paths(self):
+        if self.is_solved == True:
+            nonzero_edges = []
+            for row in self.x:
+                for edge in row:
+                    if edge != None and pulp.value(edge) > 0:
+                        nonzero_edges.append(edge)
+            routes = construct_routes(nonzero_edges)
+            return routes
+        else:
+            print("No valid solution")
+            return None
+
+    def _get_locations(self):
+        return self.locations
+
+    def _get_problem(self):
+        return self.problem
+
+    def _get_distances(self):
+        return self.distances
+
+    def _get_x(self):
+        return self.x, self.x_1d
+
+    def _get_u(self):
+        return self.u
+
+    def _get_annotations(self):
+        return self.annotations
 ```
 
 ## Create Input Data
@@ -451,8 +543,12 @@ locations, distances, annotations = generate_data(
 ```python
 P1 = Problem(locations=locations, distances=distances, annotations=annotations)
 P1.plot_locations()
-status = P1.minimize()
-print(status)
+_ = P1.minimize()
+edge_paths = P1.edge_paths()
+print("=== OPTIMAL EDGE PATHS ===")
+for i, result in enumerate(edge_paths):
+    print("Vehicle " + str(i + 1) + " Path:")
+    print(result)
 ```
 
 
@@ -465,7 +561,7 @@ print(status)
     Version: 2.10.3 
     Build Date: Dec 15 2019 
     
-    command line - /usr/local/lib/python3.9/site-packages/pulp/solverdir/cbc/osx/64/cbc /var/folders/kw/sd26wxpx6w97t0sv3_w7tggc0000gn/T/930442f4f32247d194cca8931facd012-pulp.mps timeMode elapsed branch printingOptions all solution /var/folders/kw/sd26wxpx6w97t0sv3_w7tggc0000gn/T/930442f4f32247d194cca8931facd012-pulp.sol (default strategy 1)
+    command line - /usr/local/lib/python3.9/site-packages/pulp/solverdir/cbc/osx/64/cbc /var/folders/kw/sd26wxpx6w97t0sv3_w7tggc0000gn/T/261182fd37c441e8b2fed665504c5a1a-pulp.mps timeMode elapsed branch printingOptions all solution /var/folders/kw/sd26wxpx6w97t0sv3_w7tggc0000gn/T/261182fd37c441e8b2fed665504c5a1a-pulp.sol (default strategy 1)
     At line 2 NAME          MODEL
     At line 3 ROWS
     At line 97 COLUMNS
@@ -533,37 +629,37 @@ print(status)
     Cbc0038I No solution found this major pass
     Cbc0038I Before mini branch and bound, 57 integers at bound fixed and 0 continuous of which 1 were internal integer and 0 internal continuous
     Cbc0038I Full problem 92 rows 99 columns, reduced to 35 rows 33 columns
-    Cbc0038I Mini branch and bound did not improve solution (0.09 seconds)
-    Cbc0038I After 0.09 seconds - Feasibility pump exiting with objective of 4804 - took 0.07 seconds
-    Cbc0012I Integer solution of 4804 found by feasibility pump after 0 iterations and 0 nodes (0.09 seconds)
+    Cbc0038I Mini branch and bound did not improve solution (0.11 seconds)
+    Cbc0038I After 0.11 seconds - Feasibility pump exiting with objective of 4804 - took 0.07 seconds
+    Cbc0012I Integer solution of 4804 found by feasibility pump after 0 iterations and 0 nodes (0.11 seconds)
     Cbc0038I Full problem 92 rows 99 columns, reduced to 7 rows 6 columns
     Cbc0031I 14 added rows had average density of 39.714286
     Cbc0013I At root node, 14 cuts changed objective from 3786 to 4208 in 100 passes
-    Cbc0014I Cut generator 0 (Probing) - 103 row cuts average 2.4 elements, 0 column cuts (0 active)  in 0.034 seconds - new frequency is 1
-    Cbc0014I Cut generator 1 (Gomory) - 949 row cuts average 80.1 elements, 0 column cuts (0 active)  in 0.023 seconds - new frequency is 1
-    Cbc0014I Cut generator 2 (Knapsack) - 0 row cuts average 0.0 elements, 0 column cuts (0 active)  in 0.015 seconds - new frequency is -100
+    Cbc0014I Cut generator 0 (Probing) - 103 row cuts average 2.4 elements, 0 column cuts (0 active)  in 0.037 seconds - new frequency is 1
+    Cbc0014I Cut generator 1 (Gomory) - 949 row cuts average 80.1 elements, 0 column cuts (0 active)  in 0.026 seconds - new frequency is 1
+    Cbc0014I Cut generator 2 (Knapsack) - 0 row cuts average 0.0 elements, 0 column cuts (0 active)  in 0.016 seconds - new frequency is -100
     Cbc0014I Cut generator 3 (Clique) - 0 row cuts average 0.0 elements, 0 column cuts (0 active)  in 0.002 seconds - new frequency is -100
-    Cbc0014I Cut generator 4 (MixedIntegerRounding2) - 0 row cuts average 0.0 elements, 0 column cuts (0 active)  in 0.009 seconds - new frequency is -100
-    Cbc0014I Cut generator 5 (FlowCover) - 4 row cuts average 2.0 elements, 0 column cuts (0 active)  in 0.019 seconds - new frequency is -100
+    Cbc0014I Cut generator 4 (MixedIntegerRounding2) - 0 row cuts average 0.0 elements, 0 column cuts (0 active)  in 0.010 seconds - new frequency is -100
+    Cbc0014I Cut generator 5 (FlowCover) - 4 row cuts average 2.0 elements, 0 column cuts (0 active)  in 0.020 seconds - new frequency is -100
     Cbc0014I Cut generator 6 (TwoMirCuts) - 165 row cuts average 22.2 elements, 0 column cuts (0 active)  in 0.012 seconds - new frequency is 1
-    Cbc0014I Cut generator 7 (ZeroHalf) - 16 row cuts average 7.9 elements, 0 column cuts (0 active)  in 0.654 seconds - new frequency is -100
-    Cbc0010I After 0 nodes, 1 on tree, 4804 best solution, best possible 4208 (1.55 seconds)
-    Cbc0012I Integer solution of 4710 found by DiveCoefficient after 2601 iterations and 12 nodes (1.60 seconds)
-    Cbc0004I Integer solution of 4584 found after 2799 iterations and 19 nodes (1.62 seconds)
+    Cbc0014I Cut generator 7 (ZeroHalf) - 16 row cuts average 7.9 elements, 0 column cuts (0 active)  in 0.694 seconds - new frequency is -100
+    Cbc0010I After 0 nodes, 1 on tree, 4804 best solution, best possible 4208 (1.70 seconds)
+    Cbc0012I Integer solution of 4710 found by DiveCoefficient after 2601 iterations and 12 nodes (1.76 seconds)
+    Cbc0004I Integer solution of 4584 found after 2799 iterations and 19 nodes (1.77 seconds)
     Cbc0038I Full problem 92 rows 99 columns, reduced to 81 rows 24 columns
     Cbc0038I Full problem 106 rows 99 columns, reduced to 92 rows 89 columns - too large
-    Cbc0001I Search completed - best objective 4584, took 5134 iterations and 84 nodes (1.80 seconds)
+    Cbc0001I Search completed - best objective 4584, took 5134 iterations and 84 nodes (1.95 seconds)
     Cbc0032I Strong branching done 1156 times (10407 iterations), fathomed 11 nodes and fixed 16 variables
     Cbc0035I Maximum depth 12, 679 variables fixed on reduced cost
     Cuts at root node changed objective from 3786 to 4208
-    Probing was tried 311 times and created 711 cuts of which 0 were active after adding rounds of cuts (0.051 seconds)
-    Gomory was tried 307 times and created 1381 cuts of which 0 were active after adding rounds of cuts (0.043 seconds)
-    Knapsack was tried 100 times and created 0 cuts of which 0 were active after adding rounds of cuts (0.015 seconds)
+    Probing was tried 311 times and created 711 cuts of which 0 were active after adding rounds of cuts (0.054 seconds)
+    Gomory was tried 307 times and created 1381 cuts of which 0 were active after adding rounds of cuts (0.045 seconds)
+    Knapsack was tried 100 times and created 0 cuts of which 0 were active after adding rounds of cuts (0.016 seconds)
     Clique was tried 100 times and created 0 cuts of which 0 were active after adding rounds of cuts (0.002 seconds)
-    MixedIntegerRounding2 was tried 100 times and created 0 cuts of which 0 were active after adding rounds of cuts (0.009 seconds)
-    FlowCover was tried 100 times and created 4 cuts of which 0 were active after adding rounds of cuts (0.019 seconds)
-    TwoMirCuts was tried 307 times and created 544 cuts of which 0 were active after adding rounds of cuts (0.035 seconds)
-    ZeroHalf was tried 100 times and created 16 cuts of which 0 were active after adding rounds of cuts (0.654 seconds)
+    MixedIntegerRounding2 was tried 100 times and created 0 cuts of which 0 were active after adding rounds of cuts (0.010 seconds)
+    FlowCover was tried 100 times and created 4 cuts of which 0 were active after adding rounds of cuts (0.020 seconds)
+    TwoMirCuts was tried 307 times and created 544 cuts of which 0 were active after adding rounds of cuts (0.036 seconds)
+    ZeroHalf was tried 100 times and created 16 cuts of which 0 were active after adding rounds of cuts (0.694 seconds)
     ImplicationCuts was tried 192 times and created 16 cuts of which 0 were active after adding rounds of cuts (0.001 seconds)
     
     Result - Optimal solution found
@@ -571,11 +667,15 @@ print(status)
     Objective value:                4584.00000000
     Enumerated nodes:               84
     Total iterations:               5134
-    Time (CPU seconds):             1.19
-    Time (Wallclock seconds):       1.81
+    Time (CPU seconds):             1.25
+    Time (Wallclock seconds):       1.96
     
     Option for printingOptions changed from normal to all
-    Total time (CPU seconds):       1.20   (Wallclock seconds):       1.82
+    Total time (CPU seconds):       1.25   (Wallclock seconds):       1.96
     
-    Optimal
+    === OPTIMAL EDGE PATHS ===
+    Vehicle 1 Path:
+    [x0_3, x3_6, x6_2, x2_8, x8_1]
+    Vehicle 2 Path:
+    [x0_9, x9_4, x4_7, x7_5]
 
