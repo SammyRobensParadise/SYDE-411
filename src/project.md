@@ -94,7 +94,7 @@ x_{ij}: \text{whether there's a path between i and j}
 
 # delare constants to seed the data model
 # the number of locations EXCLUDING the central starting and ending location
-NUM_LOCATIONS = 9
+NUM_LOCATIONS = 14
 NUM_VEHICLES = 2
 GRID_SIZE = {"x": 1000, "y": 1000}
 SEED = 18945
@@ -342,51 +342,41 @@ def subtours(problem, x, u, location_points, num_vehicles):
     return problem
 
 
-def next(edge, nonzero_edges: list, r: list):
-    """recursive search to find the next edge
+def find_next(start, nonstarting_edges, route):
+    ### Start is xaa_bb
+    ### We want to find in the list nonstarting_edges the element xbb_cc
+    start = str(start)
+    nonstarting_edges = nonstarting_edges
+    route.append(start)
 
-    Args:
-        edge (edge)
-        nonzero_edges (list): edges
-        r (list): routes
+    pos = start.rfind("_")
+    next_index = start[pos + 1 :]
+    next_elem = "x" + next_index + "_"
+    ### Go through list to find elem
+    for edge in nonstarting_edges:
+        newstart = None
+        if next_elem in edge:
+            nonstarting_edges.remove(edge)
+            newstart = edge
+        if newstart != None:
+            find_next(newstart, nonstarting_edges, route)
 
-    Returns:
-        routes: list
-    """
-    r.append(edge)
-    edge_name_list = list(str(edge))
-    next_index = edge_name_list[len(edge_name_list) - 1]
-    target_string = "x" + next_index
-    target_edge = None
-    for e in nonzero_edges:
-        name = str(e)
-        if name.startswith(target_string):
-            target_edge = e
-            nonzero_edges.remove(e)
-    if target_edge != None:
-        next(target_edge, nonzero_edges, r)
-    else:
-        return r
+    return route
 
 
-def construct_routes(nonzero_edges: list):
-    """constructs the routes that the vehicles should follow
-
-    Args:
-        nonzero_edges (list): nonzero edges
-
-    Returns:
-        routs: 2D array of routes
-    """
-    start_points = []
+def construct_routes(nonzero_edges):
     routes = []
-    for edge in nonzero_edges:
-        name = str(edge)
+    starting_points = []
+
+    for element in nonzero_edges:
+        name = str(element)
         if "x0" in name:
-            start_points.append(edge)
-    for start_point in start_points:
+            starting_points.append(name)
+    nonstarting_edges = [elem for elem in nonzero_edges if "x0" not in str(elem)]
+    for start in starting_points:
         r = []
-        next(start_point, nonzero_edges, r)
+        find_next(start, nonstarting_edges, r)
+
         routes.append(r)
     return routes
 
@@ -409,6 +399,47 @@ def print_node_paths(node_paths):
                 path_string += node
         print("Vehicle " + str(v + 1) + " Path:")
         print(path_string)
+
+
+def plot_results(edge_paths, locations, distance_method=DISTANCE_METHOD, problem=None):
+    if problem != None:
+        problem.plot_locations()
+
+    plt.scatter(x=0, y=0, marker=",", color="k", zorder=3)
+    colors = ["r", "g", "b", "c", "m", "y"]
+    i = 0
+    for vehicle_path in edge_paths:
+        ligns = str(colors[i] + "o-")
+
+        for point in vehicle_path:
+            point = str(point)
+            # point ~ "xaa_bb"
+            position = point.rfind("_")
+
+            start = int(point[1:position])
+            end = int(point[position + 1 : len(point)])
+
+            x1 = [locations[start][0], locations[end][0]]
+            y1 = [locations[start][1], locations[end][1]]
+
+            if distance_method == "manhattan":
+                plt.step(x1, y1, ligns, zorder=2)
+            else:  # elif distance_method == "euclidean" :
+                plt.plot(x1, y1, ligns, zorder=2)
+
+        # Add the lign from last point back to the central station
+        x1 = [locations[end][0], locations[0][0]]
+        y1 = [locations[end][1], locations[0][1]]
+        if distance_method == "manhattan":
+            plt.step(x1, y1, ligns, label=f"Vehicle {i+1}", zorder=1)
+        else:  # elif distance_method == "euclidean" :
+            plt.plot(x1, y1, ligns, label=f"Vehicle {i+1}", zorder=1)
+
+        i = 0 if i + 1 > len(colors) else i + 1
+
+    plt.legend()
+    plt.show()
+    return None
 ```
 
 ## Class Definition
@@ -519,7 +550,6 @@ class Problem:
         plt.ylim([-1 * self.grid_size["y"] / 2, self.grid_size["y"] / 2])
         for i, label in enumerate(self.annotations):
             plt.annotate(label, (self.locations[:, 0][i], self.locations[:, 1][i]))
-        plt.show()
 
     def state(self):
         print("Minimization problems for problem of id: " + str(self.id))
@@ -532,6 +562,7 @@ class Problem:
                 for edge in row:
                     if edge != None and pulp.value(edge) > 0:
                         nonzero_edges.append(edge)
+            nonzero_edges = [str(a) for a in nonzero_edges]
             routes = construct_routes(nonzero_edges)
             self.routes = routes
             return routes
@@ -603,28 +634,86 @@ locations, distances, annotations = generate_data(
 ```python
 P1 = Problem(locations=locations, distances=distances, annotations=annotations)
 P1.plot_locations()
-_ = P1.minimize()
+%time P1.minimize(method = 'default')
+
 edge_paths = P1.edge_paths()
 node_paths = P1.node_paths()
+plot_results(edge_paths, P1.locations)        
 
-print_edge_paths(edge_paths)
-print_node_paths(node_paths)
+
+
 ```
 
+    CPU times: user 7.09 ms, sys: 6.52 ms, total: 13.6 ms
+    Wall time: 2.45 s
+    [['x0_12', 'x12_3', 'x3_6', 'x6_2', 'x2_8', 'x8_10', 'x10_1', 'x1_0'], ['x0_13', 'x13_9', 'x9_4', 'x4_11', 'x11_7', 'x7_14', 'x14_5', 'x5_0']]
+
+
 
     
-![svg](project_files/project_14_0.svg)
+![svg](project_files/project_14_1.svg)
     
 
 
-    === OPTIMAL EDGE PATHS ===
-    Vehicle 1 Path:
-    [x0_3, x3_6, x6_2, x2_8, x8_1]
-    Vehicle 2 Path:
-    [x0_9, x9_4, x4_7, x7_5]
-    === OPTIMAL NODE PATHS ===
-    Vehicle 1 Path:
-    Central Location --> (-468,497) --> (-25,268) --> (303,182) --> (446,156) --> (68,44) --> Central Location
-    Vehicle 2 Path:
-    Central Location --> (91,-153) --> (197,-118) --> (493,-340) --> (16,-353) --> Central Location
+## Conducting Problem Analysis
+
+We want to solve a number of different problems to see how they scale and how the perfomance of the algorithm changes over time
+
+### Performance while scaling the number of vehicles
+Scaling the number of vehicles using the default `Branch-and-Cut` Method
+
+
+```python
+num_vehicles = [1, 2, 3]
+locations, distances, annotations = generate_data(
+    num_locations=NUM_LOCATIONS,
+    grid_size=GRID_SIZE,
+    seed=SEED,
+    distance_method=DISTANCE_METHOD,
+)
+problems: list[Problem] = []
+
+for idx, vehicles in enumerate(num_vehicles):
+    problem = Problem(
+        locations=locations,
+        distances=distances,
+        annotations=annotations,
+        num_vehicles=vehicles,
+        id=idx + 1,
+    )
+    problems.append(problem)
+
+for problem in problems:
+    problem.plot_locations()
+    problem.minimize(method="default")
+    edge_paths = problem.edge_paths()
+    node_paths = problem.node_paths()
+    plot_results(edge_paths, problem.locations)
+```
+
+    [['x0_1', 'x1_10', 'x10_4', 'x4_9', 'x9_5', 'x5_11', 'x11_14', 'x14_7', 'x7_8', 'x8_2', 'x2_6', 'x6_3', 'x3_12', 'x12_13', 'x13_0']]
+
+
+
+    
+![svg](project_files/project_17_1.svg)
+    
+
+
+    [['x0_12', 'x12_3', 'x3_6', 'x6_2', 'x2_8', 'x8_10', 'x10_1', 'x1_0'], ['x0_13', 'x13_9', 'x9_4', 'x4_11', 'x11_7', 'x7_14', 'x14_5', 'x5_0']]
+
+
+
+    
+![svg](project_files/project_17_3.svg)
+    
+
+
+    [['x0_4', 'x4_10', 'x10_2', 'x2_8', 'x8_1', 'x1_0'], ['x0_6', 'x6_3', 'x3_12', 'x12_13', 'x13_0'], ['x0_9', 'x9_11', 'x11_7', 'x7_14', 'x14_5', 'x5_0']]
+
+
+
+    
+![svg](project_files/project_17_5.svg)
+    
 
