@@ -5,7 +5,7 @@
 - Sammy Robens-Paradise, 20709541
 - Wassim Maj , 21048694
 - Tim He, 20779429
-- <full_name> , <student_number>
+- Cindy McGinnis, 20789095
 
 
 ## Import Dependencies
