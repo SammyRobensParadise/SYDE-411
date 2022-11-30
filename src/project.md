@@ -22,6 +22,7 @@ Dependencies are `numpy` `matplotlib` and `scipy`. You can install both dependen
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 import pulp
 
 np.random.seed(18945)
@@ -342,7 +343,7 @@ def subtours(problem, x, u, location_points, num_vehicles):
     return problem
 
 
-def find_next(start, nonstarting_edges, route):
+def find_next(start, nonstarting_edges: list, route: list):
     ### Start is xaa_bb
     ### We want to find in the list nonstarting_edges the element xbb_cc
     start = str(start)
@@ -529,14 +530,12 @@ class Problem:
         self.problem = subtours(self.problem, x, u, self.annotations, self.num_vehicles)
 
     def minimize(self, method="default"):
-        self.problem.startClock()
         if method == "simplex":
             self.problem.solve(pulp.apis.GLPK(options=["--simplex"]))
         elif method == "default":
-            self.problem.solve(pulp.apis.PULP_CBC_CMD(msg=0))
-        self.problem.stopClock()
+            self.problem.solve(pulp.apis.PULP_CBC_CMD(msg=0, warmStart=True))
         self.is_solved = True
-        return pulp.LpStatus[self.problem.status]
+        return pulp.LpStatus[self.problem.status], self.problem
 
     def plot_locations(self):
         plt.figure()
@@ -634,24 +633,15 @@ locations, distances, annotations = generate_data(
 ```python
 P1 = Problem(locations=locations, distances=distances, annotations=annotations)
 P1.plot_locations()
-%time P1.minimize(method = 'default')
-
+P1.minimize(method="default")
 edge_paths = P1.edge_paths()
 node_paths = P1.node_paths()
-plot_results(edge_paths, P1.locations)        
-
-
-
+plot_results(edge_paths, P1.locations)
 ```
-
-    CPU times: user 7.09 ms, sys: 6.52 ms, total: 13.6 ms
-    Wall time: 2.45 s
-    [['x0_12', 'x12_3', 'x3_6', 'x6_2', 'x2_8', 'x8_10', 'x10_1', 'x1_0'], ['x0_13', 'x13_9', 'x9_4', 'x4_11', 'x11_7', 'x7_14', 'x14_5', 'x5_0']]
-
 
 
     
-![svg](project_files/project_14_1.svg)
+![svg](project_files/project_14_0.svg)
     
 
 
@@ -660,7 +650,7 @@ plot_results(edge_paths, P1.locations)
 We want to solve a number of different problems to see how they scale and how the perfomance of the algorithm changes over time
 
 ### Performance while scaling the number of vehicles
-Scaling the number of vehicles using the default `Branch-and-Cut` Method
+Scaling the number of vehicles using the default [Branch and Cut Method](https://www.coin-or.org/Cbc/ch01s04.html) Method
 
 
 ```python
@@ -671,7 +661,10 @@ locations, distances, annotations = generate_data(
     seed=SEED,
     distance_method=DISTANCE_METHOD,
 )
+
 problems: list[Problem] = []
+process_times: list[float] = []
+process_cpu_times: list[float] = []
 
 for idx, vehicles in enumerate(num_vehicles):
     problem = Problem(
@@ -685,13 +678,18 @@ for idx, vehicles in enumerate(num_vehicles):
 
 for problem in problems:
     problem.plot_locations()
-    problem.minimize(method="default")
+    _, state = problem.minimize(method="default")
+    process_times.append(state.solutionTime)
+    process_cpu_times.append(state.solutionCpuTime)
     edge_paths = problem.edge_paths()
     node_paths = problem.node_paths()
     plot_results(edge_paths, problem.locations)
 ```
 
-    [['x0_1', 'x1_10', 'x10_4', 'x4_9', 'x9_5', 'x5_11', 'x11_14', 'x14_7', 'x7_8', 'x8_2', 'x2_6', 'x6_3', 'x3_12', 'x12_13', 'x13_0']]
+
+    
+![svg](project_files/project_17_0.svg)
+    
 
 
 
@@ -700,20 +698,34 @@ for problem in problems:
     
 
 
-    [['x0_12', 'x12_3', 'x3_6', 'x6_2', 'x2_8', 'x8_10', 'x10_1', 'x1_0'], ['x0_13', 'x13_9', 'x9_4', 'x4_11', 'x11_7', 'x7_14', 'x14_5', 'x5_0']]
-
-
 
     
-![svg](project_files/project_17_3.svg)
+![svg](project_files/project_17_2.svg)
     
 
 
-    [['x0_4', 'x4_10', 'x10_2', 'x2_8', 'x8_1', 'x1_0'], ['x0_6', 'x6_3', 'x3_12', 'x12_13', 'x13_0'], ['x0_9', 'x9_11', 'x11_7', 'x7_14', 'x14_5', 'x5_0']]
+### Solution-Time Versus number of vehicles
+We want to see how the number of vehicles relates to the runtime of the solution using the **Branch and Cut** Method
 
+
+```python
+f = plt.figure()
+ax = f.gca()
+plt.suptitle(
+    "Runtime versus number of vehicles with " + str(NUM_LOCATIONS) + " locations"
+)
+x = plt.plot(num_vehicles, process_times, label="Process sec.")
+y = plt.plot(num_vehicles, process_cpu_times, label="CPU sec.")
+ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+plt.xlabel("Vehicles")
+plt.ylabel("Runtime (seconds)")
+plt.legend(labels=[], handles=[x])
+plt.xlim([num_vehicles[0], num_vehicles[len(num_vehicles) - 1]])
+plt.show()
+```
 
 
     
-![svg](project_files/project_17_5.svg)
+![svg](project_files/project_19_0.svg)
     
 
