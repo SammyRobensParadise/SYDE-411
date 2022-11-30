@@ -468,7 +468,7 @@ class Problem:
         num_vehicles: int = NUM_VEHICLES,
         grid_size: dict = GRID_SIZE,
         seed: int = SEED,
-        id: int = 1,
+        id: int or str = 1,
         locations: list or None = None,
         distances: list or None = None,
         annotations: list or None = None,
@@ -496,9 +496,12 @@ class Problem:
         self.paths = None
 
         _validate_distances_(distances)
-        assert (
-            len(locations) == self.num_locations + 1
-        ), "Error: Incorrect number of locations created"
+        assert len(locations) == self.num_locations + 1, (
+            "Error: Incorrect number of locations created Expected length of locations"
+            + str(len(locations))
+            + " to equal "
+            + str(self.num_locations + 1)
+        )
 
         self.distances = distances
         self.locations = locations
@@ -727,5 +730,271 @@ plt.show()
 
     
 ![svg](project_files/project_19_0.svg)
+    
+
+
+## Evaluating Performance with of $n$ locations and $k$ Vehicles
+
+We want to see how performance changes with $n=[1,4,...,30], n_{n+1} = n+3$ locations and $k=[1,2,3], k_{k+1} = k+1$ vehicles.
+
+
+```python
+MIN_LOCATIONS = 1
+MAX_LOCATIONS = 25
+INC = 2
+
+# create our data matrices
+num_of_locations = np.arange(MIN_LOCATIONS, MAX_LOCATIONS + 1, INC)
+num_vehicles: list[int] = [1, 2]
+problems: list[list[Problem]] = []
+process_times: list[list[float]] = []
+process_cpu_times: list[list[float]] = []
+
+### Create our problems
+for location_count in num_of_locations:
+    NUM_LOCATIONS = location_count
+    locs, distances, annotations = generate_data(
+        num_locations=NUM_LOCATIONS,
+        grid_size=GRID_SIZE,
+        seed=SEED,
+        distance_method=DISTANCE_METHOD,
+    )
+    vehicle_problems: list[Problem] = []
+    for jdx, vehicles in enumerate(num_vehicles):
+        problem = Problem(
+            num_locations=NUM_LOCATIONS,
+            locations=locs,
+            distances=distances,
+            annotations=annotations,
+            num_vehicles=vehicles,
+            id="Location: " + str(location_count) + " Vehicle Count " + str(vehicles),
+        )
+        vehicle_problems.append(problem)
+    problems.append(vehicle_problems)
+
+### Solve our Problems
+for locations_problems in problems:
+    vehicle_process_times: list[float] = []
+    vehicle_process_cpu_times: list[float] = []
+    for vehicle_problem in locations_problems:
+        vehicle_problem.plot_locations()
+        _, state = vehicle_problem.minimize(method="default")
+        vehicle_process_times.append(state.solutionTime)
+        vehicle_process_cpu_times.append(state.solutionCpuTime)
+        edge_paths = vehicle_problem.edge_paths()
+        node_paths = vehicle_problem.node_paths()
+        plot_results(edge_paths, problem.locations)
+    process_times.append(vehicle_process_times)
+    process_cpu_times.append(vehicle_process_cpu_times)
+```
+
+
+    
+![svg](project_files/project_21_0.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_1.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_2.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_3.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_4.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_5.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_6.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_7.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_8.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_9.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_10.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_11.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_12.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_13.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_14.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_15.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_16.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_17.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_18.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_19.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_20.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_21.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_22.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_23.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_24.svg)
+    
+
+
+
+    
+![svg](project_files/project_21_25.svg)
+    
+
+
+### Solution-Time Versus number of vehicles and number of locations
+We want to see how the number of vehicles as well as locations relates to the runtime of the solution using the **Branch and Cut** Method
+
+
+```python
+# transpose our matrices so that they are in terms of vehicles
+process_times_transp = np.transpose(process_times)
+process_cpu_times_transp = np.transpose(process_cpu_times)
+
+
+f = plt.figure()
+ax = f.gca()
+plt.suptitle("Process Time Versus Location Count for 1 Vehicle")
+x = plt.plot(
+    num_of_locations, process_times_transp[1, :], label="Processing Time (Seconds)"
+)
+y = plt.plot(
+    num_of_locations, process_cpu_times_transp[1, :], label="CPU Time (Seconds)"
+)
+ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+plt.legend(labels=[], handles=[x, y])
+plt.xlabel("Locations")
+plt.ylabel("Seconds")
+plt.xlim([num_of_locations[0], num_of_locations[len(num_of_locations) - 1]])
+plt.show()
+
+f = plt.figure()
+ax = f.gca()
+plt.suptitle("Process Time Versus Location Count for 2 Vehicles")
+x = plt.plot(
+    num_of_locations, process_times_transp[0, :], label="Processing Time (Seconds)"
+)
+y = plt.plot(
+    num_of_locations, process_cpu_times_transp[0, :], label="CPU Time (Seconds)"
+)
+ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+plt.legend(labels=[], handles=[x, y])
+plt.xlabel("Locations")
+plt.ylabel("Seconds")
+plt.xlim([num_of_locations[0], num_of_locations[len(num_of_locations) - 1]])
+plt.show()
+```
+
+
+    
+![svg](project_files/project_23_0.svg)
+    
+
+
+
+    
+![svg](project_files/project_23_1.svg)
     
 
