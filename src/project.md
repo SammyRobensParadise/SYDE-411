@@ -636,10 +636,13 @@ locations, distances, annotations = generate_data(
 ```python
 P1 = Problem(locations=locations, distances=distances, annotations=annotations)
 P1.plot_locations()
-P1.minimize(method="default")
-edge_paths = P1.edge_paths()
-node_paths = P1.node_paths()
-plot_results(edge_paths, P1.locations)
+state, _ = P1.minimize(method="default")
+if state == "Infeasible":
+    print("NO VALID OPTIMAL SOLUTION FOUND")
+else:
+    edge_paths = P1.edge_paths()
+    node_paths = P1.node_paths()
+    plot_results(edge_paths, P1.locations)
 ```
 
 
@@ -681,12 +684,15 @@ for idx, vehicles in enumerate(num_vehicles):
 
 for problem in problems:
     problem.plot_locations()
-    _, state = problem.minimize(method="default")
-    process_times.append(state.solutionTime)
-    process_cpu_times.append(state.solutionCpuTime)
-    edge_paths = problem.edge_paths()
-    node_paths = problem.node_paths()
-    plot_results(edge_paths, problem.locations)
+    state, state = problem.minimize(method="default")
+    if state == "Infeasible":
+        print("NO VALID OPTIMAL SOLUTION FOUND")
+    else:
+        process_times.append(state.solutionTime)
+        process_cpu_times.append(state.solutionCpuTime)
+        edge_paths = problem.edge_paths()
+        node_paths = problem.node_paths()
+        plot_results(edge_paths, problem.locations)
 ```
 
 
@@ -778,12 +784,15 @@ for locations_problems in problems:
     vehicle_process_cpu_times: list[float] = []
     for vehicle_problem in locations_problems:
         vehicle_problem.plot_locations()
-        _, state = vehicle_problem.minimize(method="default")
-        vehicle_process_times.append(state.solutionTime)
-        vehicle_process_cpu_times.append(state.solutionCpuTime)
-        edge_paths = vehicle_problem.edge_paths()
-        node_paths = vehicle_problem.node_paths()
-        plot_results(edge_paths, problem.locations)
+        state, state = vehicle_problem.minimize(method="default")
+        if state == "Infeasible":
+            print("NO VALID OPTIMAL SOLUTION FOUND")
+        else:
+            vehicle_process_times.append(state.solutionTime)
+            vehicle_process_cpu_times.append(state.solutionCpuTime)
+            edge_paths = vehicle_problem.edge_paths()
+            node_paths = vehicle_problem.node_paths()
+            plot_results(edge_paths, problem.locations)
     process_times.append(vehicle_process_times)
     process_cpu_times.append(vehicle_process_cpu_times)
 ```
